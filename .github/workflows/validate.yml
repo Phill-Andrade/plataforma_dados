@@ -1,0 +1,31 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  shell-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate shell syntax
+        run: |
+          while IFS= read -r file; do
+            bash -n "$file"
+          done < <(find scripts infrastructure/entrypoints tests -type f -name '*.sh' -print)
+
+      - name: Run shell tests
+        run: |
+          for test_file in tests/shell/test_*.sh; do
+            bash "$test_file"
+          done
