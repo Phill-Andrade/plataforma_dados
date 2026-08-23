@@ -15,7 +15,7 @@
     </property>
     <property>
         <name>javax.jdo.option.ConnectionPassword</name>
-        <value>1234</value>
+        <value>${env.POSTGRES_PASSWORD}</value>
     </property>
     <property>
         <name>hive.metastore.port</name>
@@ -23,7 +23,7 @@
     </property>
     <property>
         <name>hive.metastore.uris</name>
-        <value>thrift://masternode:9083</value>
+        <value>thrift://hive-metastore:9083</value>
     </property> 
     <property>
         <name>datanucleus.autoStartMechanism</name>
@@ -31,10 +31,10 @@
     </property> 
 	<property>
 	    <name>datanucleus.schema.autoCreateAll</name>
-	    <value>true</value>        
+	    <value>false</value>
     </property>
     <property>
         <name>hive.metastore.schema.verification</name>
-        <value>false</value>        
+        <value>true</value>
     </property>
 </configuration>

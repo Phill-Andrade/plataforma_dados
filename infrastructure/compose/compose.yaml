@@ -1,109 +1,185 @@
-x-common-env: &common-env
-  NODES_FILES: "/opt/nodes_files"
-  HADOOP_PLATFORM_UID: ${HADOOP_PLATFORM_UID}
-  HADOOP_PLATFORM_GID: ${HADOOP_PLATFORM_GID} 
+x-metastore-database: &metastore-database
+  POSTGRES_DB: postgres
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-1234}
+
+x-hadoop-service: &hadoop-service
+  image: hadoop_platform
+  build:
+    context: ../..
+    dockerfile: infrastructure/docker/base/Dockerfile
+  init: true
+  networks:
+    - data_platform_network
+
 services:
   postgres:
     image: postgres:17.4
     environment:
-      - POSTGRES_PASSWORD=1234
-    container_name: postgres       
+      <<: *metastore-database
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_hive_metastore:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "bash", "-c", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
     networks:
-      hadoop_network:
-        ipv4_address: 172.20.0.2
+      - data_platform_network
 
-  master_node:
-    image: hadoop_platform
-    environment:
-      <<: *common-env
-    entrypoint: ["bash", "-c", "bash /opt/nodes_files/master_entrypoint.sh"]    
+  namenode-init:
+    <<: *hadoop-service
+    entrypoint: ["bash", "/opt/nodes_files/namenode-init/entrypoint.sh"]
     volumes:
       - namenode_hadoop_platform:/opt/hadoop/dfs/name
-    container_name: masternode
-    hostname: masternode
+    restart: "no"
+
+  namenode:
+    <<: *hadoop-service
+    hostname: namenode
+    command: ["hdfs", "namenode"]
     ports:
-      - "8020:8020"
-      - "8030:8030"
-      - "8031:8031"    
-      - "8032:8032"
-      - "8033:8033"
-      - "8088:8088"
-      - "9000:9000"
-      - "9083:9083"
-      - "9866:9866"      
-      - "9868:9868"
       - "9870:9870"
-      - "10000:10000"  
+    volumes:
+      - namenode_hadoop_platform:/opt/hadoop/dfs/name
+    depends_on:
+      namenode-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "hdfs dfsadmin -safemode get 2>/dev/null | grep -q 'Safe mode is OFF'"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+
+  resourcemanager:
+    <<: *hadoop-service
+    hostname: resourcemanager
+    command: ["yarn", "resourcemanager"]
+    ports:
+      - "8088:8088"
+    depends_on:
+      namenode:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8088'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  datanode:
+    <<: *hadoop-service
+    command: ["hdfs", "datanode"]
+    ports:
+      - "19864-19875:9864"
+    volumes:
+      - /opt/hadoop/dfs/data
+    deploy:
+      replicas: 2
+    depends_on:
+      namenode:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9864'"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  nodemanager:
+    <<: *hadoop-service
+    command: ["yarn", "nodemanager"]
+    ports:
+      - "8042-8053:8042"
+    deploy:
+      replicas: 2
+    depends_on:
+      resourcemanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8042'"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  hive-metastore:
+    <<: *hadoop-service
+    hostname: hive-metastore
+    entrypoint: ["bash", "/opt/nodes_files/hive-metastore/entrypoint.sh"]
+    environment:
+      <<: *metastore-database
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    ports:
+      - "9083:9083"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "bash", "-c", "netstat -tulpn | grep -q ':9000' && netstat -tulpn | grep -q ':8088' && netstat -tulpn | grep -q ':8032' && pgrep -f metastore"]
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9083'"]
       interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 60s   
-    networks:
-      hadoop_network:
-        ipv4_address: 172.20.0.3
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
-  worker_node:
-    image: hadoop_platform
-    entrypoint: ["bash", "-c", "bash /opt/nodes_files/worker_entrypoint.sh"] 
-    environment:
-      <<: *common-env   
-    container_name: worker_node      
-    ports:
-      - "9864:9864"
-      - "8042:8042"
-    volumes:
-      - ./logs:/tmp/logs
-      - datanode_hadoop_platform:/opt/hadoop/dfs/data
-    healthcheck:
-      test: ["CMD", "bash", "-c", "netstat -tulpn | grep -q ':9864' && netstat -tulpn | grep -q ':8042'"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+  hdfs-init:
+    <<: *hadoop-service
+    entrypoint: ["bash", "/opt/nodes_files/hdfs-init/entrypoint.sh"]
     depends_on:
-      master_node:
-        condition: service_healthy 
-    networks:
-      hadoop_network:
-        ipv4_address: 172.20.0.4
-
-  client_node:
-    image: hadoop_platform     
-    entrypoint: ["bash", "-c", "bash /opt/spark/bin/spark-submit /opt/spark/conf/test_hive.py"] 
-    container_name: client_node
-    ports:
-      - "9090:9090"
-      - "9091:9091"
-    depends_on:
-      master_node:
+      namenode:
         condition: service_healthy
-      worker_node:
-        condition: service_healthy  
-    networks:
-      hadoop_network:
-        ipv4_address: 172.20.0.5
+      datanode:
+        condition: service_healthy
+    restart: "no"
+
+  spark-history:
+    <<: *hadoop-service
+    hostname: spark-history
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.history.HistoryServer
+    ports:
+      - "18080:18080"
+    depends_on:
+      hdfs-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/18080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  spark-client:
+    <<: *hadoop-service
+    profiles: ["tools"]
+    command: ["bash"]
+    stdin_open: true
+    tty: true
+    depends_on:
+      hdfs-init:
+        condition: service_completed_successfully
+      namenode:
+        condition: service_healthy
+      datanode:
+        condition: service_healthy
+      resourcemanager:
+        condition: service_healthy
+      nodemanager:
+        condition: service_healthy
+      hive-metastore:
+        condition: service_healthy
 
 networks:
-  hadoop_network:
-    name: hadoop_network
+  data_platform_network:
+    name: data_platform_network
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-          gateway: 172.20.0.1
+
 volumes:
+  postgres_hive_metastore:
   namenode_hadoop_platform:
-  datanode_hadoop_platform:

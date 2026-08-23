@@ -3,23 +3,23 @@
 <configuration>
 	<property>
 		<name>yarn.resourcemanager.hostname</name>
-		<value>masternode</value>
+		<value>resourcemanager</value>
 	</property>
 	<property>
 		<name>yarn.resourcemanager.address</name>
-		<value>${yarn.resourcemanager.hostname}:8032</value>
+		<value>resourcemanager:8032</value>
 	</property>
 	<property>
 		<name>yarn.resourcemanager.scheduler.address</name>
-		<value>${yarn.resourcemanager.hostname}:8030</value>
+		<value>resourcemanager:8030</value>
 	</property>
 	<property>
 		<name>yarn.resourcemanager.resource-tracker.address</name>
-		<value>${yarn.resourcemanager.hostname}:8031</value>
+		<value>resourcemanager:8031</value>
 	</property>
 	<property>
 		<name>yarn.resourcemanager.admin.address</name>
-		<value>${yarn.resourcemanager.hostname}:8033</value>
+		<value>resourcemanager:8033</value>
 	</property>
 	<property>
 		<name>yarn.resourcemanager.bind-host</name>
@@ -40,6 +40,18 @@
 	<property>
 		<name>yarn.nodemanager.aux-services.spark_shuffle.classpath</name>
 		<value>/opt/spark/yarn/*</value>
+	</property>
+	<property>
+		<name>yarn.log-aggregation-enable</name>
+		<value>true</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.remote-app-log-dir</name>
+		<value>/yarn_logs</value>
+	</property>
+	<property>
+		<name>yarn.log-aggregation.retain-seconds</name>
+		<value>604800</value>
 	</property>
 	<property>
 		<name>yarn.nodemanager.log-dirs</name>
