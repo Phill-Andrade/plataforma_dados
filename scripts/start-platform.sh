@@ -1,37 +1,60 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+#
+# Public entry point for the Hadoop platform lifecycle. Starts the complete
+# platform, stops it with --down, and delegates worker scaling requests.
+
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." &>/dev/null && pwd)"
+COMPOSE_PATH="${REPO_ROOT}/infrastructure/compose/compose.yaml"
 
-echo "Checking Docker and docker-compose installation"
-if ! command -v docker &>/dev/null; then
-  echo "Docker is not installed!"
-  exit 1
+usage() {
+  cat <<USAGE
+Usage: $(basename "$0") [--down | -w NUMBER]
+
+Options:
+  -w, --worker, --workers NUMBER
+                        Scale DataNode and NodeManager to the requested number of replicas.
+  --down                Stop and remove the platform containers and network.
+  -h, --help            Show this help message.
+
+Examples:
+  $(basename "$0")
+  $(basename "$0") -w 3
+  $(basename "$0") --down
+USAGE
+}
+
+usage_error() {
+  echo "[ERROR] Invalid arguments." >&2
+  usage >&2
+  return 2
+}
+
+main() {
+  if (( $# == 0 )); then
+    exec docker compose -f "${COMPOSE_PATH}" up --build
+  fi
+
+  case "$1" in
+    -h|--help)
+      (( $# == 1 )) || usage_error
+      usage
+      ;;
+    --down)
+      (( $# == 1 )) || usage_error
+      exec docker compose -f "${COMPOSE_PATH}" down
+      ;;
+    -w|--worker|--workers)
+      exec "${SCRIPT_DIR}/scale-workers.sh" "$@"
+      ;;
+    *)
+      usage_error
+      ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
 fi
-if ! docker compose version &>/dev/null; then
-  echo "Docker Compose is not installed!"
-  exit 1
-fi
-echo "Docker and Docker Compose found successfully."
-
-DOCKERFILE_PATH="${SCRIPT_DIR}/hadoop_platform/docker/base.Dockerfile"
-COMPOSE_PATH="${SCRIPT_DIR}/hadoop_platform/compose/docker-compose.yaml"
-
-if [ ! -f "$DOCKERFILE_PATH" ]; then
-  echo "Error: Dockerfile not found at $DOCKERFILE_PATH"
-  exit 1
-fi
-
-if [ ! -f "$COMPOSE_PATH" ]; then
-  echo "Error: docker-compose.yaml not found at $COMPOSE_PATH"
-  exit 1
-fi
-
-export HADOOP_PLATFORM_UID=$(id -u)
-export HADOOP_PLATFORM_GID=$(id -g)
-
-echo "Building the Hadoop base image..."
-docker build -f "$DOCKERFILE_PATH" -t "hadoop_platform" "$SCRIPT_DIR"
-
-echo "Starting services with Docker Compose..."
-docker compose -f "$COMPOSE_PATH" up --build
