@@ -22,6 +22,8 @@ ARG LINK_JAR_POSTGRES="https://repo1.maven.org/maven2/org/postgresql/postgresql/
 ENV HADOOP_HOME="${BASE_DIR_PATH}/hadoop"
 ENV SPARK_HOME="${BASE_DIR_PATH}/spark"
 ENV HIVE_HOME="${BASE_DIR_PATH}/hive"
+ENV PYSPARK_PYTHON="/usr/bin/python3"
+ENV PYSPARK_DRIVER_PYTHON="/usr/bin/python3"
 
 ENV HADOOP_CONF_DIR="${BASE_DIR_PATH}/hadoop/etc/hadoop"
 ENV YARN_CONF_DIR="${HADOOP_CONF_DIR}"
@@ -37,6 +39,7 @@ ENV PATH="${HIVE_HOME}/bin:${HADOOP_HOME}/bin:${HADOOP_HOME}/sbin:${SPARK_HOME}/
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     postgresql-client \
+    python3 \
     wget && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p ${HADOOP_HOME} && \
