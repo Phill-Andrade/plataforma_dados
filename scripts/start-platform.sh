@@ -34,7 +34,7 @@ usage_error() {
 
 main() {
   if (( $# == 0 )); then
-    exec docker compose -f "${COMPOSE_PATH}" up --build
+    exec docker compose -f "${COMPOSE_PATH}" up --build -d
   fi
 
   case "$1" in
