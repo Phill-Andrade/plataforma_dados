@@ -177,7 +177,7 @@ services:
 
 networks:
   data_platform_network:
-    name: data_platform_network
+    name: data-platform-network
     driver: bridge
 
 volumes:

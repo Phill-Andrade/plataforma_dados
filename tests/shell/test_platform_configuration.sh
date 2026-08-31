@@ -49,6 +49,11 @@ hadoop_anchor_has_no_runtime_environment_file() {
     grep -q "env_file:"
 }
 
+platform_network_name_is_uri_safe() {
+  sed -n "/^networks:/,/^volumes:/p" "${COMPOSE_PATH}" |
+    grep -Fqx "    name: data-platform-network"
+}
+
 spark_defaults_do_not_repeat_native_configuration() {
   ! grep -Eq \
     '^(spark\.ui\.enabled|spark\.ui\.port|spark\.history\.ui\.port|spark\.hadoop\.fs\.defaultFS|spark\.hadoop\.yarn\.resourcemanager\.hostname)[[:space:]]' \
@@ -159,6 +164,7 @@ test_docker_image_contract() {
 
 test_compose_contract() {
   assert_true "Compose configuration is valid" docker compose -f "${COMPOSE_PATH}" config --quiet
+  assert_true "platform network name is URI-safe" platform_network_name_is_uri_safe
   assert_true \
     "shared Hadoop anchor owns the image build" \
     bash -c 'sed -n "/^x-hadoop-service:/,/^services:/p" "$1" | grep -q "^  build:"' _ "${COMPOSE_PATH}"
