@@ -214,7 +214,7 @@ O `spark.yarn.archive` aponta para `/spark/spark-libs-3.5.5.zip` no HDFS. O YARN
 
 ## Integração com clientes externos
 
-A stack cria a rede Docker `data_platform_network` com nome estável. Um container de outro projeto pode ingressar nessa rede enquanto ela existir.
+A stack cria a rede Docker `data-platform-network` com nome estável. Um container de outro projeto pode ingressar nessa rede enquanto ela existir.
 
 Em outro arquivo Compose:
 
@@ -228,7 +228,7 @@ services:
 networks:
   data_platform_network:
     external: true
-    name: data_platform_network
+    name: data-platform-network
 ```
 
 O cliente deve usar os seguintes nomes DNS e protocolos:
@@ -243,7 +243,7 @@ Contrato de integração:
 
 1. o cliente fornece seu próprio código e dependências;
 2. a plataforma fornece HDFS, YARN, Spark e o catálogo Hive;
-3. o cliente ingressa em `data_platform_network` e usa os aliases estáveis;
+3. o cliente ingressa em `data-platform-network` e usa os aliases estáveis;
 4. nenhuma DAG, tabela de domínio ou regra de pipeline é adicionada a este repositório;
 5. credenciais e configurações específicas do pipeline permanecem no projeto consumidor.
 
@@ -383,6 +383,6 @@ As versões dos runtimes ficam no [`Dockerfile`](infrastructure/docker/base/Dock
 ### Equipes consumidoras de pipelines
 
 - mantêm DAGs, aplicações Spark, dependências e regras de negócio em repositórios próprios;
-- conectam seus containers à `data_platform_network`;
+- conectam seus containers à `data-platform-network`;
 - submetem jobs usando os endpoints documentados;
 - não dependem de código de pipeline armazenado nesta plataforma.
